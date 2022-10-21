@@ -25,8 +25,8 @@ async function getBitqueryData(query, variables) {
   return await axios(config).then((response) => response.data);
 }
 
-export async function getPairCurrencies(chain, pair){
-  const query = `{ ethereum(network: ${chain}) { dexTrades( smartContractAddress: {is: \"${pair}\"} options: {limit: 1} ) { exchange { fullName } baseCurrency { symbol address } quoteCurrency { symbol address } } } }`;
+export async function getPairCurrencies(chain, pair) {
+  const query = `{ ethereum(network: ${chain}) { dexTrades( smartContractAddress: {is: \"${pair}\"} options: {limit: 1} ) { exchange { fullName } baseCurrency { symbol address decimals } quoteCurrency { symbol address decimals } } } }`;
   const variables = "{}";
   return await getBitqueryData(query, variables);
 }
@@ -71,65 +71,118 @@ export async function getPairs(chain, address) {
   return await getBitqueryData(query, variables);
 }
 
-export async function getNewListedPairs(chain) {
-  const query = `{ ethereum(network: ${chain}) { arguments( smartContractEvent: {is: \"PairCreated\"} options: {desc: \"block.height\", limit: 6} ) { block { height } argument { name } reference { address } } } }`;
-  const variables = "{}";
-  return await getBitqueryData(query, variables);
-}
-
 export const getTopTrades = async (chain) =>
   getBitqueryData(
     `{ ethereum(network: ${chain}) { dexTrades( options: {desc: [\"tradeAmount\", \"trades\"], limit: 50} time: {since: \"2022-09-16T06:16:18.416Z\"} ) { token: smartContract { address { address } } exchange { fullName } trades: count tradeAmount(in: USD) any(of: price) baseCurrency { address symbol name } } } }`,
     "{}"
   );
 
-export const getTokenBalances = async (chain, address) => getBitqueryData(
-  `{\n  ethereum(network: ${chain}) {\n    address(address: {is: \"${address}\"}) {\n      balances {\n        value\n        currency {\n          address\n          symbol\n          tokenType\n          tokenId\n        }\n      }\n    }\n  }\n}\n`,
-  "{}"
-)
+export const getTokenBalances = async (chain, address) =>
+  getBitqueryData(
+    `{\n  ethereum(network: ${chain}) {\n    address(address: {is: \"${address}\"}) {\n      balances {\n        value\n        currency {\n          address\n          symbol\n          tokenType\n          tokenId\n        }\n      }\n    }\n  }\n}\n`,
+    "{}"
+  );
 
-export const getTokenCreated = (chain, address) => getBitqueryData(
-  `{\n  ethereum(network: ${chain}) {\n    transactions(txSender: {is: \"${address}\"}) {\n      creates {\n        smartContract {\n          currency {\n            name\n            symbol\n            tokenType\n          }\n          contractType\n        }\n        address\n      }\n    }\n  }\n}\n`,
-  "{}"
-)
+export const getTokenCreated = (chain, address) =>
+  getBitqueryData(
+    `{\n  ethereum(network: ${chain}) {\n    transactions(txSender: {is: \"${address}\"}) {\n      creates {\n        smartContract {\n          currency {\n            name\n            symbol\n            tokenType\n          }\n          contractType\n        }\n        address\n      }\n    }\n  }\n}\n`,
+    "{}"
+  );
 
-export const getOwnershipTrasnferred = (chain, addresses) => getBitqueryData(
-  `{\n  ethereum(network: ethereum) {\n    smartContractEvents(\n      smartContractAddress: {in: ${addresses}}\n      smartContractEvent: {is: \"OwnershipTransferred\"}\n    ) {\n      arguments {\n        argument\n        argumentType\n        index\n        value\n      }\n      smartContract {\n        address {\n          address\n        }\n      }\n    }\n  }\n}\n`,
-  "{}"
-)
+export const getOwnershipTrasnferred = (chain, addresses) =>
+  getBitqueryData(
+    `{\n  ethereum(network: ethereum) {\n    smartContractEvents(\n      smartContractAddress: {in: ${addresses}}\n      smartContractEvent: {is: \"OwnershipTransferred\"}\n    ) {\n      arguments {\n        argument\n        argumentType\n        index\n        value\n      }\n      smartContract {\n        address {\n          address\n        }\n      }\n    }\n  }\n}\n`,
+    "{}"
+  );
 
 export const getPriceVariation = (chain, addresses) => {
   const query = `{
     ethereum(network: ${chain}) {
-      ${addresses.map((value, index) => `
+      ${addresses
+        .map(
+          (value, index) => `
         variation${index}: dexTrades(
           options: {asc: \"timeInterval.hour\"}
           baseCurrency: {is: \"${value.baseCurrency}\"}
           quoteCurrency: {is: \"${value.quoteCurrency}\"}
-          time: {since: \"${new Date(new Date().getTime() - 86400000).toISOString()}\"}
+          time: {since: \"${new Date(
+            new Date().getTime() - 86400000
+          ).toISOString()}\"}
         ) {
           quotePrice
           timeInterval {
             hour(count: 24)
           }
         }
-      `).join("")}
+      `
+        )
+        .join("")}
     }
-  }`
-  return getBitqueryData(
-    query,
+  }`;
+  return getBitqueryData(query, "{}");
+};
+
+export const get24HourVolume = (chain, pair) =>
+  getBitqueryData(
+    `{ ethereum(network: ${chain}) { dexTrades( date: {since: \"${new Date(
+      new Date().getTime() - 86400000
+    ).toISOString()}\"} smartContractAddress: {is: \"${pair}\"} ) { tradeAmount(in: USDT, calculate: sum) } } }`,
     "{}"
-  )
+  );
 
-}
+export const getCirculatedSupply = (chain, currency) =>
+  getBitqueryData(
+    `{ ethereum(network: ${chain}) { transfers(date: {}, amount: {gt: 0}) { burned: amount( calculate: sum receiver: {in: [\"0x0000000000000000000000000000000000000000\", \"0x000000000000000000000000000000000000dead\"]} ) minted: amount( calculate: sum sender: {in: [\"0x0000000000000000000000000000000000000000\"]} ) contractMints: amount( calculate: sum sender: {in: [\"0x0000000000000000000000000000000000000000\"]} ) currency(currency: {is: \"${currency}\"}) { symbol name decimals address } } } }`,
+    "{}"
+  );
 
-export const get24HourVolume = (chain, pair) => getBitqueryData(
-  `{ ethereum(network: ${chain}) { dexTrades( date: {since: \"${new Date(new Date().getTime() - 86400000).toISOString()}\"} smartContractAddress: {is: \"${pair}\"} ) { tradeAmount(in: USDT, calculate: sum) } } }`,
-  "{}"
-)
+export const getReserves = (chain, pair, baseCurrency, quoteCurrency) =>
+  getBitqueryData(
+    `query ($pair: String, $baseCurrency: String, $quoteCurrency: String){ ethereum(network: ${chain}) { baseCurrency: address(address: {is: $pair}) { balances(currency: {is: $baseCurrency}) { value } } quoteCurrrency: address(address: {is: $pair}) { balances(currency: {is: $quoteCurrency}) { value } } } }`,
+    JSON.stringify({
+      pair,
+      baseCurrency,
+      quoteCurrency,
+    })
+  );
 
-export const getCirculatedSupply = (chain, currency) => getBitqueryData(
-  `{ ethereum(network: ${chain}) { transfers(date: {}, amount: {gt: 0}) { burned: amount( calculate: sum receiver: {in: [\"0x0000000000000000000000000000000000000000\", \"0x000000000000000000000000000000000000dead\"]} ) minted: amount( calculate: sum sender: {in: [\"0x0000000000000000000000000000000000000000\"]} ) contractMints: amount( calculate: sum sender: {in: [\"0x0000000000000000000000000000000000000000\"]} ) currency(currency: {is: \"${currency}\"}) { symbol name decimals address } } } }`,
-  "{}"
-)
+export const getLastPrice = (chain, baseCurrency, quoteCurrency) =>
+  getBitqueryData(
+    `query MyQuery ($baseCurrency: String, $quoteCurrency: String){ ethereum(network: ${chain}) { dexTrades( baseCurrency: {is: $baseCurrency} quoteCurrency: {is: $quoteCurrency} ) { quotePrice(calculate: anyLast) } } }`,
+    JSON.stringify({
+      baseCurrency,
+      quoteCurrency,
+    })
+  );
 
+export const getUsdPrice = (chain, currency) =>
+  getBitqueryData(
+    `query ($currency: String){ ethereum(network: ${chain}) { dexTrades( options: {desc: ["block.height", "tradeIndex"], limit: 1} baseCurrency: {is: $currency} ) { quotePrice block { height } tradeIndex protocol exchange { fullName } smartContract { address { address annotation } } baseAmount baseCurrency { address symbol } quoteAmount quoteCurrency(quoteCurrency: {in: "USDT"}) { address symbol } transaction { hash } } } }`,
+    JSON.stringify({
+      currency,
+    })
+  );
+
+export const getContractCreation = (chain, address) =>
+  getBitqueryData(
+    `query MyQuery($address: String, $chain: EthereumNetwork) { ethereum(network: $chain) { transactions(txCreates: {is: $address}) { hash time: any(of: time) } } }`,
+    JSON.stringify({
+      chain,
+      address,
+    })
+  );
+
+export const getNewListedPairs = (chain) =>
+  getBitqueryData(
+    `{ ethereum(network: ${chain}) { arguments( options: {desc: ["block.height", "index"], limit: 50} smartContractEvent: {is: "PairCreated"} ) { block { height timestamp { time(format: "%Y-%m-%d %H:%M:%S") } } index pair: any(of: argument_value, argument: {is: "pair"}) token0: any(of: argument_value, argument: {is: "token0"}) token0Name: any(of: argument_value, argument: {is: "token0"}, as: token_name) token0Symbol: any( of: argument_value argument: {is: "token0"} as: token_symbol ) token1: any(of: argument_value, argument: {is: "token1"}) token1Name: any(of: argument_value, argument: {is: "token1"}, as: token_name) token1Symbol: any( of: argument_value argument: {is: "token1"} as: token_symbol ) smartContract { address { annotation } } } } }`,
+    "{}"
+  );
+
+export const getSearchQuery = (chain, search) =>
+  getBitqueryData(
+    `query MyQuery($search: [String!], $chain: EthereumNetwork) { ethereum(network: $chain) { dexTrades(baseCurrency: {in: $search}, options: {limit: 10}) { baseCurrency { address name symbol } smartContract { address { address } } quoteCurrency { address name symbol } } } }`,
+    JSON.stringify({
+      chain,
+      search,
+    })
+  );

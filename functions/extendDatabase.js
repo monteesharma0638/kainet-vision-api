@@ -21,11 +21,24 @@ const TokenActionSchema = new mongoose.Schema({
   dislikedStatus: Boolean,
 });
 
+const TokenKycSchema = new mongoose.Schema({
+  tokenAddress: String,
+  teamWalletAddress: String,
+  ownerAddress: String,
+  telegram: String,
+  email: String,
+  twitter: String,
+  repo: String,
+  website: String,
+  chain: String
+});
+
 export const PairActionModal = mongoose.model("pairactions", PairActionSchema);
 export const TokenActionModal = mongoose.model(
   "tokenactions",
   TokenActionSchema
 );
+export const TokenKycModal = mongoose.model("/tokenkycs", TokenKycSchema);
 
 export async function updatePairAction(
   walletAddress,
@@ -145,6 +158,31 @@ export async function getTokenLikeByAccount(walletAddress) {
       walletAddress,
     },
     { _id: 0 }
+  );
+
+  return data;
+}
+
+export async function updateTokenKyc({tokenAddress, chain,  ownerAddress, teamWalletAddress, telegram, twitter, repo, website}) {
+  const data = await TokenKycModal.updateOne(
+    {
+      tokenAddress,
+    },
+    {
+      $set: {
+        teamWalletAddress,
+        ownerAddress,
+        telegram,
+        email,
+        twitter,
+        repo,
+        website,
+        chain
+      },
+    },
+    {
+      upsert: true
+    }
   );
 
   return data;

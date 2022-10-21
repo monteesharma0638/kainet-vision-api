@@ -1,7 +1,20 @@
+import axios from "axios";
 import { Router } from "express";
-import { get24HourVolume, getChartData, getCirculatedSupply, getDexTrades, getNewListedPairs, getOwnershipTrasnferred, getPairCurrencies, getPriceVariation, getTokenBalances, getTokenCreated, getTokenInfo, getTopTrades } from "../functions/bitqueryAndFunctions.js";
+import { get24HourVolume, getChartData, getCirculatedSupply, getReserves, getDexTrades, getNewListedPairs, getOwnershipTrasnferred, getPairCurrencies, getPriceVariation, getTokenBalances, getTokenCreated, getTokenInfo, getTopTrades, getUsdPrice, getContractCreation, getSearchQuery, getLastPrice } from "../functions/bitqueryAndFunctions.js";
 import chains from "../functions/chains.js";
+import dexChains from "../functions/dexChains.js";
 var router = Router();
+
+function isNative(currency){
+  switch(currency){
+    case "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2": return true;
+    case "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c": return true;
+    case "0x82A618305706B14e7bcf2592D4B9324A366b6dAd": return true;
+    default: return false;
+  }
+}
+
+const fiats = ["usdc", "usdt", "busd"];
 
 /* GET users listing. */
 router.get("/", function (req, res, next) {
@@ -43,7 +56,7 @@ router.get("/getTokenBalances", async function (req, res, next) {
 
 router.get("/getTokenCreated", async function (req, res, next) {
   const {chain, address} = req.query;
-  const data = await getTokenCreated(chains[chain], "0x8E1703E600f3A667482C4cedF9c5042c4F9E1fA5");
+  const data = await getTokenCreated(chains[chain], address);
   res.send({code: 1, data: data});
 })
 
@@ -62,6 +75,17 @@ router.post("/getPriceVariation", async function (req, res, next){
 router.get("/getPairCurrencies", async (req, res, next) => {
   const { chain, pair } = req.query;
   const result = await getPairCurrencies(chain, pair);
+  if(fiats.includes(result.data.ethereum.dexTrades[0].baseCurrency.symbol.toLowerCase())){
+    const baseCurrency = result.data.ethereum.dexTrades[0].quoteCurrency;
+    result.data.ethereum.dexTrades[0].quoteCurrency = result.data.ethereum.dexTrades[0].baseCurrency;
+    result.data.ethereum.dexTrades[0].baseCurrency = baseCurrency;
+  }
+  else if(isNative(result.data.ethereum.dexTrades[0].baseCurrency.address)){
+    const baseCurrency = result.data.ethereum.dexTrades[0].quoteCurrency;
+    result.data.ethereum.dexTrades[0].quoteCurrency = result.data.ethereum.dexTrades[0].baseCurrency;
+    result.data.ethereum.dexTrades[0].baseCurrency = baseCurrency;
+
+  }
   res.send({code: 1, data: result});
 })
 
@@ -78,10 +102,66 @@ router.get("/getDayVolume", async (req, res, next) => {
   }
 })
 
-router.get("/getMarketCap", async (req, res, next) => {
+router.get("/getCircularSupply", async (req, res, next) => {
   const { chain, currency} = req.query;
   const result = await getCirculatedSupply(chain, currency);
   res.send({code: 1, data: result});
+})
+
+router.get("/getGainers", async (req, res, next) => {
+  const { chain } = req.query;
+  const config = {
+    method: 'get',
+    url: `https://www.dextools.io/shared/analytics/pairs/gainers?limit=51&interval=24h&chain=${dexChains[chain]}`,
+  }
+  const result = await axios(config).then(response => response.data);
+  res.send({code: 1, data: result});
+})
+
+router.get("/getLoosers", async (req, res, next) => {
+  const { chain } = req.query;
+  const config = {
+    method: 'get',
+    url: `https://www.dextools.io/shared/analytics/pairs/loosers?limit=51&interval=24h&chain=${dexChains[chain]}`,
+  }
+  const result = await axios(config).then(response => response.data);
+  res.send({code: 1, data: result});
+})
+
+router.get("/getReserves", async (req, res, next) => {
+  const {chain, pair, baseCurrency, quoteCurrency} = req.query;
+  const result = await getReserves(chain, pair, baseCurrency, quoteCurrency).catch(console.log);
+  res.send({code: 1, data: result});
+})
+
+router.get("/getUsdPrice", async (req, res, next) => {
+  const {chain, currency} = req.query;
+  const result = await getUsdPrice(chain, currency);
+  res.send({code: 1, data: result});
+})
+
+router.get("/getContractCreation", async (req, res, next) => {
+  const {chain, address} = req.query;
+  const result = await getContractCreation(chain, address);
+  res.send({code: 1, data: result})
+})
+
+router.get("/getNewListedPairs", async (req, res, next) => {
+  const { chain } = req.query;
+  const result = await  getNewListedPairs(chain);
+  res.send({code: 1, data: result});
+})
+
+router.get("/getSearchQuery", async(req, res, next) => {
+  const { chain, search } = req.query;
+  const result = await getSearchQuery(chain, search);
+  res.send({code: 1, data: result});
+})
+
+router.get("/getLastPrice", async (req, res, next)=> {
+  const {chain, baseCurrency, quoteCurrency} = req.query;
+  const result = await getLastPrice(chain, baseCurrency, quoteCurrency);
+  res.send({code: 1, data:result})
 })
 
 export default router;
